@@ -208,6 +208,28 @@ class BTSolver:
                     bestVar = v
 
         return bestVar
+    
+    def getDegree ( self ):
+        """
+        Degree heuristic (DEG):
+        Pick the unassigned variable that has the most unassigned neighbors.
+        """
+        bestVar = None
+        bestDegree = -1
+
+        for v in self.network.variables:
+            if v.isAssigned():
+                continue
+
+            degree = 0
+            for n in self.network.getNeighborsOfVariable(v):
+                if not n.isAssigned():
+                    degree += 1
+
+            if degree > bestDegree:
+                bestDegree = degree
+                bestVar = v
+            return bestVar
 
     """
         Part 2 TODO: Implement the Minimum Remaining Value Heuristic
@@ -375,6 +397,9 @@ class BTSolver:
 
         if self.varHeuristics == "MRVwithTieBreaker":
             return self.MRVwithTieBreaker()[0]
+
+        if self.varHeuristics == "Degree":
+            return self.getDegree()
 
         if self.varHeuristics == "tournVar":
             return self.getTournVar()
