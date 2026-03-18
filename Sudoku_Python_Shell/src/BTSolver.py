@@ -6,6 +6,8 @@ import Constraint
 import ConstraintNetwork
 import time
 import random
+import json
+from collections import defaultdict
 
 class BTSolver:
 
@@ -79,8 +81,8 @@ class BTSolver:
         return (modifiedVars, True)
 
     # =================================================================
-	# Arc Consistency
-	# =================================================================
+    # Arc Consistency
+    # =================================================================
     def arcConsistency( self ):
         assignedVars = []
         for c in self.network.constraints:
@@ -111,7 +113,7 @@ class BTSolver:
 
         Note: remember to trail.push variables before you assign them
         Return: a pair of a dictionary and a bool. The dictionary contains all variables 
-		        that were ASSIGNED during the whole NorvigCheck propagation, and mapped to the values that they were assigned.
+                that were ASSIGNED during the whole NorvigCheck propagation, and mapped to the values that they were assigned.
                 The bool is true if assignment is consistent, false otherwise.
     """
     def norvigCheck ( self ):
@@ -419,4 +421,285 @@ class BTSolver:
 
     def getSolution ( self ):
         return self.network.toSudokuBoard(self.gameboard.p, self.gameboard.q)
+
+    # ==================================================================
+    # Testing Functions - Minimal AI Tests (Forward Checking Only)
+    # ==================================================================
+
+    @staticmethod
+    def run_minimal_ai_tests():
+        """
+        Run 60 Minimal AI tests: 15 tests each for 9x9, 12x12, 16x16, 25x25
+        All tests use Forward Checking (FC) only
+        """
+        print("\n" + "="*80)
+        print("MINIMAL AI TESTS - Forward Checking Only")
+        print("="*80)
+        
+        minimal_results = {
+            '9x9': {'solved': 0, 'total_backtracks': 0, 'trials': 15},
+            '12x12': {'solved': 0, 'total_backtracks': 0, 'trials': 15},
+            '16x16': {'solved': 0, 'total_backtracks': 0, 'trials': 15},
+            '25x25': {'solved': 0, 'total_backtracks': 0, 'trials': 15}
+        }
+        
+        board_sizes = {
+            '9x9': (3, 3),
+            '12x12': (3, 4),
+            '16x16': (4, 4),
+            '25x25': (5, 5)
+        }
+        
+        # Test each difficulty level
+        for difficulty, (p, q) in board_sizes.items():
+            print(f"\nTesting {difficulty} boards ({p}x{q})...")
+            
+            for test_num in range(15):
+                # Reset Trail counters for each test
+                Trail.Trail.numPush = 0
+                Trail.Trail.numUndo = 0
+                
+                # Generate board
+                board = SudokuBoard.SudokuBoard(p, q, 7)
+                trail = Trail.Trail()
+                
+                # Create solver with FC only
+                solver = BTSolver(board, trail, val_sh="", var_sh="", cc="forwardChecking")
+                solver.checkConsistency()
+                
+                # Solve
+                solver.solve()
+                
+                # Record results
+                if solver.hassolution:
+                    minimal_results[difficulty]['solved'] += 1
+                    backtracks = trail.getUndoCount()
+                    minimal_results[difficulty]['total_backtracks'] += backtracks
+                    print(f"  Test {test_num+1}/15: SOLVED (backtracks: {backtracks})")
+                else:
+                    print(f"  Test {test_num+1}/15: FAILED")
+        
+        # Print summary table
+        print("\n" + "="*80)
+        print("MINIMAL AI TEST RESULTS")
+        print("="*80)
+        print(f"{'Board Size':<20} {'Sample Size (n)':<20} {'Boards Solved':<20} {'Avg # Backtracks':<20}")
+        print("-"*80)
+        
+        total_solved = 0
+        total_backtracks = 0
+        total_trials = 0
+        
+        for difficulty in ['9x9', '12x12', '16x16', '25x25']:
+            result = minimal_results[difficulty]
+            solved = result['solved']
+            trials = result['trials']
+            avg_backtracks = result['total_backtracks'] / solved if solved > 0 else 0
+            
+            print(f"{difficulty:<20} {trials:<20} {solved:<20} {avg_backtracks:<20.2f}")
+            
+            total_solved += solved
+            total_backtracks += result['total_backtracks']
+            total_trials += trials
+        
+        avg_total_backtracks = total_backtracks / total_solved if total_solved > 0 else 0
+        print("-"*80)
+        print(f"{'Total Summary':<20} {total_trials:<20} {total_solved:<20} {avg_total_backtracks:<20.2f}")
+        print("="*80)
+        
+        return minimal_results
+
+    # ==================================================================
+    # Testing Functions - Final AI Tests (Optimized Combinations)
+    # ==================================================================
+
+    @staticmethod
+    def run_final_ai_tests():
+        """
+        Run 60 Final AI tests: 15 tests per difficulty level with optimized algorithm combinations
+        """
+        print("\n" + "="*80)
+        print("FINAL AI TESTS - Optimized Algorithm Combinations")
+        print("="*80)
+        
+        # Define algorithm combinations for each difficulty level
+        # Format: (var_heuristic, val_heuristic, constraint_check)
+        algorithm_combinations = {
+            'easy': [
+                ("", "", "forwardChecking"),           # 1-3: Basic FC
+                ("", "", "forwardChecking"),
+                ("", "", "forwardChecking"),
+                ("MinimumRemainingValue", "", "forwardChecking"),  # 4-6: MRV + FC
+                ("MinimumRemainingValue", "", "forwardChecking"),
+                ("MinimumRemainingValue", "", "forwardChecking"),
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "forwardChecking"),  # 7-9: MRV+Degree + LCV + FC
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "forwardChecking"),
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "forwardChecking"),
+                ("", "", "norvigCheck"),               # 10-12: Basic + Norvig
+                ("", "", "norvigCheck"),
+                ("", "", "norvigCheck"),
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "norvigCheck"),  # 13-15: MRV+Degree + LCV + Norvig
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "norvigCheck"),
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "norvigCheck"),
+            ],
+            'intermediate': [
+                ("", "", "forwardChecking"),           # 1-3: Basic FC
+                ("", "", "forwardChecking"),
+                ("", "", "forwardChecking"),
+                ("MinimumRemainingValue", "", "forwardChecking"),  # 4-6: MRV + FC
+                ("MinimumRemainingValue", "", "forwardChecking"),
+                ("MinimumRemainingValue", "", "forwardChecking"),
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "forwardChecking"),  # 7-9: MRV+Degree + LCV + FC
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "forwardChecking"),
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "forwardChecking"),
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "norvigCheck"),  # 10-12: MRV+Degree + LCV + Norvig
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "norvigCheck"),
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "norvigCheck"),
+                ("", "", "norvigCheck"),               # 13-15: Basic + Norvig
+                ("", "", "norvigCheck"),
+                ("", "", "norvigCheck"),
+            ],
+            'hard': [
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "norvigCheck"),  # 1-3: MRV+Degree + LCV + Norvig
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "norvigCheck"),
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "norvigCheck"),
+                ("MinimumRemainingValue", "", "norvigCheck"),  # 4-6: MRV + Norvig
+                ("MinimumRemainingValue", "", "norvigCheck"),
+                ("MinimumRemainingValue", "", "norvigCheck"),
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "forwardChecking"),  # 7-9: MRV+Degree + LCV + FC
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "forwardChecking"),
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "forwardChecking"),
+                ("MRVwithTieBreaker", "", "norvigCheck"),  # 10-12: MRV+Degree + Norvig
+                ("MRVwithTieBreaker", "", "norvigCheck"),
+                ("MRVwithTieBreaker", "", "norvigCheck"),
+                ("", "", "norvigCheck"),               # 13-15: Basic + Norvig
+                ("", "", "norvigCheck"),
+                ("", "", "norvigCheck"),
+            ],
+            'expert': [
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "norvigCheck"),  # 1-3: MRV+Degree + LCV + Norvig
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "norvigCheck"),
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "norvigCheck"),
+                ("MRVwithTieBreaker", "", "norvigCheck"),  # 4-6: MRV+Degree + Norvig
+                ("MRVwithTieBreaker", "", "norvigCheck"),
+                ("MRVwithTieBreaker", "", "norvigCheck"),
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "forwardChecking"),  # 7-9: MRV+Degree + LCV + FC
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "forwardChecking"),
+                ("MRVwithTieBreaker", "LeastConstrainingValue", "forwardChecking"),
+                ("MinimumRemainingValue", "LeastConstrainingValue", "norvigCheck"),  # 10-12: MRV + LCV + Norvig
+                ("MinimumRemainingValue", "LeastConstrainingValue", "norvigCheck"),
+                ("MinimumRemainingValue", "LeastConstrainingValue", "norvigCheck"),
+                ("MinimumRemainingValue", "", "norvigCheck"),  # 13-15: MRV + Norvig
+                ("MinimumRemainingValue", "", "norvigCheck"),
+                ("MinimumRemainingValue", "", "norvigCheck"),
+            ]
+        }
+        
+        board_sizes = {
+            'easy': (3, 3),
+            'intermediate': (3, 4),
+            'hard': (4, 4),
+            'expert': (5, 5)
+        }
+        
+        final_results = {
+            'easy': {'solved': 0, 'total_backtracks': 0, 'trials': 15},
+            'intermediate': {'solved': 0, 'total_backtracks': 0, 'trials': 15},
+            'hard': {'solved': 0, 'total_backtracks': 0, 'trials': 15},
+            'expert': {'solved': 0, 'total_backtracks': 0, 'trials': 15}
+        }
+        
+        # Test each difficulty level
+        for difficulty in ['easy', 'intermediate', 'hard', 'expert']:
+            p, q = board_sizes[difficulty]
+            combos = algorithm_combinations[difficulty]
+            
+            print(f"\nTesting {difficulty} boards ({p}x{q})...")
+            
+            for test_num in range(15):
+                # Reset Trail counters for each test
+                Trail.Trail.numPush = 0
+                Trail.Trail.numUndo = 0
+                
+                # Get algorithm combination for this test
+                var_heur, val_heur, constraint = combos[test_num]
+                
+                # Generate board
+                board = SudokuBoard.SudokuBoard(p, q, 7)
+                trail = Trail.Trail()
+                
+                # Create solver with selected combination
+                solver = BTSolver(board, trail, val_sh=val_heur, var_sh=var_heur, cc=constraint)
+                solver.checkConsistency()
+                
+                # Solve
+                solver.solve()
+                
+                # Determine combo name for display
+                combo_name = f"{var_heur if var_heur else 'First'} + {val_heur if val_heur else 'InOrder'} + {constraint[:2].upper()}"
+                
+                # Record results
+                if solver.hassolution:
+                    final_results[difficulty]['solved'] += 1
+                    backtracks = trail.getUndoCount()
+                    final_results[difficulty]['total_backtracks'] += backtracks
+                    print(f"  Test {test_num+1}/15 ({combo_name}): SOLVED (backtracks: {backtracks})")
+                else:
+                    print(f"  Test {test_num+1}/15 ({combo_name}): FAILED")
+        
+        # Print summary table
+        print("\n" + "="*80)
+        print("FINAL AI TEST RESULTS")
+        print("="*80)
+        print(f"{'Board Size':<20} {'Sample Size (n)':<20} {'Boards Solved':<20} {'Avg # Backtracks':<20}")
+        print("-"*80)
+        
+        total_solved = 0
+        total_backtracks = 0
+        total_trials = 0
+        
+        for difficulty in ['easy', 'intermediate', 'hard', 'expert']:
+            result = final_results[difficulty]
+            solved = result['solved']
+            trials = result['trials']
+            avg_backtracks = result['total_backtracks'] / solved if solved > 0 else 0
+            
+            print(f"{difficulty:<20} {trials:<20} {solved:<20} {avg_backtracks:<20.2f}")
+            
+            total_solved += solved
+            total_backtracks += result['total_backtracks']
+            total_trials += trials
+        
+        avg_total_backtracks = total_backtracks / total_solved if total_solved > 0 else 0
+        print("-"*80)
+        print(f"{'Total Summary':<20} {total_trials:<20} {total_solved:<20} {avg_total_backtracks:<20.2f}")
+        print("="*80)
+        
+        return final_results
+
+    # ==================================================================
+    # Main Testing Entry Point
+    # ==================================================================
+
+    @staticmethod
+    def run_all_tests():
+        """
+        Run both Minimal AI and Final AI tests sequentially
+        """
+        print("\n\n")
+        print("#"*80)
+        print("# STARTING COMPREHENSIVE AI TESTING SUITE")
+        print("#"*80)
+        
+        # Run Minimal Tests
+        minimal_results = BTSolver.run_minimal_ai_tests()
+        
+        # Run Final Tests
+        final_results = BTSolver.run_final_ai_tests()
+        
+        print("\n" + "#"*80)
+        print("# ALL TESTING COMPLETE")
+        print("#"*80 + "\n")
+        
+        return minimal_results, final_results
     

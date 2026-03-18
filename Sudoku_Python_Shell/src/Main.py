@@ -113,4 +113,19 @@ def main ( ):
     else:
         print( "Failed to find a solution" )
 
-main()
+if __name__ == "__main__":
+    # Check if user wants to run tests
+    if len(sys.argv) > 1 and sys.argv[1] == "TEST":
+        print("\n" + "="*80)
+        print("STARTING COMPREHENSIVE AI TESTING SUITE")
+        print("="*80)
+        print("This will run 120 total tests (60 minimal + 60 final)")
+        print("Estimated time: 5-15 minutes depending on system performance")
+        print("="*80 + "\n")
+        
+        # Run all tests
+        minimal, final = BTSolver.BTSolver.run_all_tests()
+        
+    else:
+        main()
+        
